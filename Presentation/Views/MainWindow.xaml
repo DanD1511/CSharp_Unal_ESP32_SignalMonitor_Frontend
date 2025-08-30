@@ -1,0 +1,173 @@
+﻿<Window x:Class="CSharp_WPF_Websockets.Presentation.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:views="clr-namespace:CSharp_WPF_Websockets.Presentation.Views"
+        Title="ESP32 WebSocket Monitor" 
+        Height="800" Width="1200"
+        WindowStartupLocation="CenterScreen"
+        Background="#FF303030"
+        Foreground="White"
+        FontFamily="Segoe UI">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisConverter"/>
+
+        <Style x:Key="ModernButton" TargetType="Button">
+            <Setter Property="Background" Value="#FF4CAF50"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FF66BB6A"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#FF757575"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DisconnectButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Background" Value="#FFF44336"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FFEF5350"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ModernCard" TargetType="Border">
+            <Setter Property="Background" Value="#FF424242"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="Margin" Value="8"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.3"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="HeaderText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#FF1976D2" Padding="20,15">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="🔌 ESP32 WebSocket Monitor" 
+                         Style="{StaticResource HeaderText}"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Ellipse Width="12" Height="12" Margin="0,0,10,0">
+                        <Ellipse.Fill>
+                            <SolidColorBrush Color="{Binding ConnectionStatusColor}"/>
+                        </Ellipse.Fill>
+                    </Ellipse>
+                    <TextBlock Text="{Binding ConnectionStatus}" 
+                             VerticalAlignment="Center" FontWeight="Medium"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Connection Panel -->
+        <Border Grid.Row="1" Style="{StaticResource ModernCard}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="🌐" FontSize="24" 
+                         VerticalAlignment="Center" Margin="0,0,15,0"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <StackPanel Margin="0,0,15,0">
+                        <TextBlock Text="IP Address" FontSize="12" Opacity="0.7"/>
+                        <TextBox Text="{Binding DeviceIpAddress, UpdateSourceTrigger=PropertyChanged}"
+                               Background="#FF616161" Foreground="White" BorderThickness="1"
+                               BorderBrush="#FF757575" Padding="8" Width="150"/>
+                    </StackPanel>
+
+                    <StackPanel>
+                        <TextBlock Text="Port" FontSize="12" Opacity="0.7"/>
+                        <TextBox Text="{Binding DevicePort, UpdateSourceTrigger=PropertyChanged}"
+                               Background="#FF616161" Foreground="White" BorderThickness="1"
+                               BorderBrush="#FF757575" Padding="8" Width="80"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <Button Grid.Column="2" Content="🔗 Connect"
+                       Command="{Binding ConnectCommand}"
+                       Style="{StaticResource ModernButton}"/>
+
+                <Button Grid.Column="3" Content="❌ Disconnect"
+                       Command="{Binding DisconnectCommand}"
+                       Style="{StaticResource DisconnectButton}"/>
+
+                <Button Grid.Column="4" Content="🔄"
+                       Command="{Binding RefreshCommand}"
+                       Style="{StaticResource ModernButton}"
+                       Width="40" Padding="8"/>
+            </Grid>
+        </Border>
+
+        <!-- Main Content -->
+        <ScrollViewer Grid.Row="2" Margin="10" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Signals}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="3"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <views:SignalCard/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="3" Background="#FF37474F" Padding="20,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="{Binding DeviceName}" 
+                         VerticalAlignment="Center" FontWeight="Medium"/>
+
+                <TextBlock Grid.Column="1" 
+                         Text="{Binding LastUpdate, StringFormat='Last Update: {0:HH:mm:ss}'}"
+                         VerticalAlignment="Center" FontSize="12" Opacity="0.8"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
