@@ -12,6 +12,11 @@ namespace CSharp_WPF_Websockets.Infrastructure.Data
 
         public void UpdateSignal(DeviceSignal signal)
         {
+            if (signal == null || string.IsNullOrWhiteSpace(signal.Id))
+            {
+                return;
+            }
+
             lock (_lock)
             {
                 if (_signals.ContainsKey(signal.Id))
@@ -20,16 +25,6 @@ namespace CSharp_WPF_Websockets.Infrastructure.Data
                     existing.Value = signal.Value;
                     existing.Status = signal.Status;
                     existing.Timestamp = signal.Timestamp;
-
-                    // Update UI thread
-                    App.Current.Dispatcher.Invoke(() =>
-                    {
-                        var index = Signals.ToList().FindIndex(s => s.Id == signal.Id);
-                        if (index >= 0)
-                        {
-                            Signals[index] = existing;
-                        }
-                    });
                 }
                 else
                 {
@@ -38,6 +33,7 @@ namespace CSharp_WPF_Websockets.Infrastructure.Data
                 }
             }
         }
+
 
         public IEnumerable<DeviceSignal> GetAllSignals()
         {

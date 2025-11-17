@@ -10,10 +10,11 @@ namespace CSharp_WPF_Websockets.Application.Services
         private readonly IWebSocketRepository _webSocketRepository;
         private readonly SignalDataStore _signalDataStore;
         private readonly ILogger<DeviceService> _logger;
-        private MicroControllerDevice _currentDevice;
 
-        public event EventHandler<DeviceSignal> SignalUpdated;
-        public event EventHandler<MicroControllerDevice> DeviceStatusChanged;
+        private MicroControllerDevice? _currentDevice;
+
+        public event EventHandler<DeviceSignal>? SignalUpdated;
+        public event EventHandler<MicroControllerDevice>? DeviceStatusChanged;
 
         public bool IsConnected => _webSocketRepository.IsConnected;
 
@@ -22,9 +23,9 @@ namespace CSharp_WPF_Websockets.Application.Services
             SignalDataStore signalDataStore,
             ILogger<DeviceService> logger)
         {
-            _webSocketRepository = webSocketRepository;
-            _signalDataStore = signalDataStore;
-            _logger = logger;
+            _webSocketRepository = webSocketRepository ?? throw new ArgumentNullException(nameof(webSocketRepository));
+            _signalDataStore = signalDataStore ?? throw new ArgumentNullException(nameof(signalDataStore));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
             _webSocketRepository.SignalReceived += OnSignalReceived;
             _webSocketRepository.ConnectionStatusChanged += OnConnectionStatusChanged;
@@ -52,9 +53,6 @@ namespace CSharp_WPF_Websockets.Application.Services
                 {
                     _currentDevice.Status = ConnectionStatus.Connected;
                     _currentDevice.LastSeen = DateTime.Now;
-
-                    // Initialize default signals
-                    InitializeDefaultSignals();
 
                     _logger.LogInformation($"Successfully connected to device: {connectionString}");
                 }
@@ -127,7 +125,6 @@ namespace CSharp_WPF_Websockets.Application.Services
         {
             try
             {
-                // Update signal status based on value ranges
                 UpdateSignalStatus(signal);
 
                 _signalDataStore.UpdateSignal(signal);
@@ -172,46 +169,6 @@ namespace CSharp_WPF_Websockets.Application.Services
             else
             {
                 signal.Status = SignalStatus.Normal;
-            }
-        }
-
-        private void InitializeDefaultSignals()
-        {
-            var defaultSignals = new[]
-            {
-                new DeviceSignal
-                {
-                    Id = "temp", Name = "Temperature", Type = "Temperature",
-                    Unit = "°C", MinValue = -10, MaxValue = 50, Color = "#FF6B35"
-                },
-                new DeviceSignal
-                {
-                    Id = "hum", Name = "Humidity", Type = "Humidity",
-                    Unit = "%", MinValue = 0, MaxValue = 100, Color = "#4ECDC4"
-                },
-                new DeviceSignal
-                {
-                    Id = "press", Name = "Pressure", Type = "Pressure",
-                    Unit = "hPa", MinValue = 900, MaxValue = 1100, Color = "#45B7D1"
-                },
-                new DeviceSignal
-                {
-                    Id = "light", Name = "Light Level", Type = "Analog",
-                    Unit = "lux", MinValue = 0, MaxValue = 1000, Color = "#FFA07A"
-                },
-                new DeviceSignal
-                {
-                    Id = "motion", Name = "Motion Sensor", Type = "Digital",
-                    Unit = "", MinValue = 0, MaxValue = 1, Color = "#98D8C8"
-                }
-            };
-
-            foreach (var signal in defaultSignals)
-            {
-                signal.Value = 0;
-                signal.Status = SignalStatus.Offline;
-                signal.Timestamp = DateTime.Now;
-                _signalDataStore.UpdateSignal(signal);
             }
         }
 

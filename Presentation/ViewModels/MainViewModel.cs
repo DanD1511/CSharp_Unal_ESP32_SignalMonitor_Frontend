@@ -1,10 +1,13 @@
 ﻿using System.Collections.ObjectModel;
+using System.Linq;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using CSharp_WPF_Websockets.Domain.Entities;
 using CSharp_WPF_Websockets.Domain.Interfaces;
 using CSharp_WPF_Websockets.Infrastructure.Data;
+using CSharp_WPF_Websockets.Presentation.Views;
 
 namespace CSharp_WPF_Websockets.Presentation.ViewModels
 {
@@ -14,57 +17,54 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
         private readonly SignalDataStore _signalDataStore;
         private readonly ILogger<MainViewModel> _logger;
 
-        [ObservableProperty]
-        private string _deviceIpAddress = "192.168.1.100";
+        private readonly Dictionary<string, SignalCardViewModel> _signalViewModels = new();
+        private DetailWindow? _detailWindow;
 
-        [ObservableProperty]
-        private int _devicePort = 80;
+        [ObservableProperty] private string _deviceIpAddress = "192.168.18.52";
 
-        [ObservableProperty]
-        private bool _isConnected = false;
+        [ObservableProperty] private int _devicePort = 80;
 
-        [ObservableProperty]
-        private bool _isConnecting = false;
+        [ObservableProperty] private bool _isConnected = false;
 
-        [ObservableProperty]
-        private string _connectionStatus = "Disconnected";
+        [ObservableProperty] private bool _isConnecting = false;
 
-        [ObservableProperty]
-        private string _deviceName = "ESP32 Device";
+        [ObservableProperty] private string _connectionStatus = "Disconnected";
 
-        [ObservableProperty]
-        private DateTime _lastUpdate = DateTime.Now;
+        [ObservableProperty] private string _deviceName = "ESP32 Device";
 
-        [ObservableProperty]
-        private string _connectionStatusColor = "#FF6B6B";
+        [ObservableProperty] private DateTime _lastUpdate = DateTime.Now;
 
-        public ObservableCollection<DeviceSignal> Signals { get; }
+        [ObservableProperty] private string _connectionStatusColor = "#FF6B6B";
 
-        // Comandos como propiedades públicas
+        [ObservableProperty] private ObservableCollection<SignalCardViewModel> _signalCards = new();
+
+        [ObservableProperty] private int _selectedSignalsCount = 0;
+
+        public ObservableCollection<DeviceSignal> Signals => _signalDataStore.Signals;
+
         public IAsyncRelayCommand ConnectCommand { get; }
         public IAsyncRelayCommand DisconnectCommand { get; }
         public IAsyncRelayCommand RefreshCommand { get; }
+        public IRelayCommand OpenDetailWindowCommand { get; }
 
         public MainViewModel(
             IDeviceService deviceService,
             SignalDataStore signalDataStore,
             ILogger<MainViewModel> logger)
         {
-            _deviceService = deviceService;
-            _signalDataStore = signalDataStore;
-            _logger = logger;
+            _deviceService = deviceService ?? throw new ArgumentNullException(nameof(deviceService));
+            _signalDataStore = signalDataStore ?? throw new ArgumentNullException(nameof(signalDataStore));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-            Signals = _signalDataStore.Signals;
-
-            // Inicializar comandos
             ConnectCommand = new AsyncRelayCommand(ExecuteConnectAsync, CanConnect);
             DisconnectCommand = new AsyncRelayCommand(ExecuteDisconnectAsync, CanDisconnect);
             RefreshCommand = new AsyncRelayCommand(ExecuteRefreshAsync);
+            OpenDetailWindowCommand = new RelayCommand(ExecuteOpenDetailWindow, CanOpenDetailWindow);
 
-
-            // Suscribirse a eventos
             _deviceService.SignalUpdated += OnSignalUpdated;
             _deviceService.DeviceStatusChanged += OnDeviceStatusChanged;
+
+            SignalCards.CollectionChanged += (s, e) => UpdateSelectedCount();
         }
 
         private async Task ExecuteConnectAsync()
@@ -124,12 +124,101 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
             }
         }
 
+        private void ExecuteOpenDetailWindow()
+        {
+            if (_detailWindow == null || !_detailWindow.IsVisible)
+            {
+                var selectedSignals = SignalCards.Where(s => s.IsSelected).ToList();
+
+                var detailViewModel = new DetailWindowViewModel(selectedSignals);
+                _detailWindow = new DetailWindow
+                {
+                    DataContext = detailViewModel,
+                    Owner = App.Current.MainWindow
+                };
+
+                _detailWindow.Closed += (s, e) => _detailWindow = null;
+                _detailWindow.Show();
+            }
+            else
+            {
+                _detailWindow.Activate();
+            }
+        }
+
         private bool CanConnect() => !IsConnecting && !IsConnected;
         private bool CanDisconnect() => IsConnected;
+        private bool CanOpenDetailWindow() => SelectedSignalsCount > 0;
 
         private void OnSignalUpdated(object sender, DeviceSignal signal)
         {
-            LastUpdate = DateTime.Now;
+            App.Current.Dispatcher.Invoke(() =>
+            {
+                if (signal == null || string.IsNullOrWhiteSpace(signal.Id))
+                {
+                    return;
+                }
+
+                var existingSignal = Signals.FirstOrDefault(s => s.Name == signal.Name);
+                if (existingSignal != null)
+                {
+                    var index = Signals.IndexOf(existingSignal);
+                    if (index >= 0)
+                    {
+                        var existing = Signals[index];
+                        existing.Value = signal.Value;
+                        existing.Timestamp = signal.Timestamp;
+                        existing.Type = signal.Type;
+                        existing.Unit = signal.Unit;
+                        existing.Color = signal.Color;
+                        existing.MinValue = signal.MinValue;
+                        existing.MaxValue = signal.MaxValue;
+                    }
+                }
+                else
+                {
+                    Signals.Add(signal);
+                }
+
+                if (_signalViewModels.TryGetValue(signal.Name, out var existingViewModel))
+                {
+                    existingViewModel.UpdateSignal(signal);
+                    _logger.LogDebug($"ViewModel actualizado para: {signal.Name}");
+                }
+                else
+                {
+                    var newViewModel = new SignalCardViewModel(signal);
+                    newViewModel.PropertyChanged += OnSignalViewModelPropertyChanged;
+                    _signalViewModels[signal.Name] = newViewModel;
+                    SignalCards.Add(newViewModel);
+                    _logger.LogDebug($"Nuevo ViewModel creado para: {signal.Name}");
+                }
+
+                LastUpdate = DateTime.Now;
+            });
+        }
+
+        private void OnSignalViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(SignalCardViewModel.IsSelected))
+            {
+                var selectedCount = SignalCards.Count(s => s.IsSelected);
+
+                if (selectedCount > 3 && sender is SignalCardViewModel viewModel)
+                {
+                    viewModel.IsSelected = false;
+                    _logger.LogInformation("Máximo 3 señales pueden ser seleccionadas");
+                    return;
+                }
+
+                UpdateSelectedCount();
+            }
+        }
+
+        private void UpdateSelectedCount()
+        {
+            SelectedSignalsCount = SignalCards.Count(s => s.IsSelected);
+            OpenDetailWindowCommand.NotifyCanExecuteChanged();
         }
 
         private void OnDeviceStatusChanged(object sender, MicroControllerDevice device)
@@ -159,6 +248,35 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
 
                 ConnectCommand.NotifyCanExecuteChanged();
                 DisconnectCommand.NotifyCanExecuteChanged();
+            });
+        }
+
+        public void DebugViewModels()
+        {
+            _logger.LogDebug($"=== DEBUG VIEWMODELS ===");
+            _logger.LogDebug($"Total ViewModels: {_signalViewModels.Count}");
+            _logger.LogDebug($"SignalCards.Count: {SignalCards.Count}");
+
+            foreach (var kvp in _signalViewModels)
+            {
+                var vm = kvp.Value;
+                _logger.LogDebug($"  {kvp.Key}: {vm.ChartValues.Count} puntos en gráfico");
+            }
+        }
+
+        public void ClearSignals()
+        {
+            App.Current.Dispatcher.Invoke(() =>
+            {
+                foreach (var vm in _signalViewModels.Values)
+                {
+                    vm.PropertyChanged -= OnSignalViewModelPropertyChanged;
+                }
+
+                _signalViewModels.Clear();
+                SignalCards.Clear();
+                Signals.Clear();
+                UpdateSelectedCount();
             });
         }
     }

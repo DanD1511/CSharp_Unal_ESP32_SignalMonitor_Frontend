@@ -9,15 +9,6 @@ namespace CSharp_WPF_Websockets.Presentation.Views
         public SignalCard()
         {
             InitializeComponent();
-            DataContextChanged += OnDataContextChanged;
-        }
-
-        private void OnDataContextChanged(object sender, System.Windows.DependencyPropertyChangedEventArgs e)
-        {
-            if (e.NewValue is DeviceSignal signal)
-            {
-                DataContext = new SignalCardViewModel(signal);
-            }
         }
     }
 }
