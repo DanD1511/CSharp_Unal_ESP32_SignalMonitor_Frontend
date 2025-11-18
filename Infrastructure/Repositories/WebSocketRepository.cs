@@ -1,4 +1,5 @@
-﻿using System.Net.WebSockets;
+﻿using System.IO;
+using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using CSharp_WPF_Websockets.Domain.Entities;
@@ -99,29 +100,37 @@ namespace CSharp_WPF_Websockets.Infrastructure.Repositories
 
         private async Task ReceiveLoop(CancellationToken cancellationToken)
         {
-            var buffer = new byte[4096];
+            var buffer = new byte[8192]; 
+            var messageBuffer = new ArraySegment<byte>(buffer);
+
+            using var ms = new MemoryStream();
 
             try
             {
                 while (_webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
                 {
-                    var result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                    var result = await _webSocket.ReceiveAsync(messageBuffer, cancellationToken);
 
-                    if (result.MessageType == WebSocketMessageType.Text)
-                    {
-                        var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        ProcessReceivedMessage(message);
-                    }
-                    else if (result.MessageType == WebSocketMessageType.Close)
+                    if (result.MessageType == WebSocketMessageType.Close)
                     {
                         UpdateStatus(ConnectionStatus.Disconnected);
                         break;
                     }
+
+                    ms.Write(buffer, 0, result.Count);
+
+                    if (!result.EndOfMessage)
+                        continue;
+
+                    var completeMessage = Encoding.UTF8.GetString(ms.ToArray());
+
+                    ProcessReceivedMessage(completeMessage);
+
+                    ms.SetLength(0);
                 }
             }
             catch (OperationCanceledException)
             {
-                // Expected when cancellation is requested
             }
             catch (WebSocketException ex)
             {
@@ -134,22 +143,69 @@ namespace CSharp_WPF_Websockets.Infrastructure.Repositories
         {
             try
             {
-                var signal = JsonSerializer.Deserialize<DeviceSignal>(message, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                using var doc = JsonDocument.Parse(message);
+                var root = doc.RootElement;
 
-                if (signal != null)
+                double packetTime = 0;
+                if (root.TryGetProperty("timestamp", out var ts))
                 {
-                    signal.Timestamp = DateTime.Now;
-                    SignalReceived?.Invoke(this, signal);
+                    packetTime = ts.GetDouble();
+                }
+
+                if (!root.TryGetProperty("signals", out var signalsElement) ||
+                    signalsElement.ValueKind != JsonValueKind.Array)
+                {
+                    _logger.LogWarning("Mensaje sin array 'signals'");
+                    return;
+                }
+
+                foreach (var sig in signalsElement.EnumerateArray())
+                {
+                    var deviceSignal = new DeviceSignal();
+
+                    if (sig.TryGetProperty("id", out var idEl)) deviceSignal.Id = idEl.GetString() ?? "";
+                    if (sig.TryGetProperty("name", out var nameEl)) deviceSignal.Name = nameEl.GetString() ?? "";
+                    if (sig.TryGetProperty("unit", out var uEl)) deviceSignal.Unit = uEl.GetString() ?? "V";
+                    if (sig.TryGetProperty("min", out var minEl)) deviceSignal.MinValue = minEl.GetDouble();
+                    if (sig.TryGetProperty("max", out var maxEl)) deviceSignal.MaxValue = maxEl.GetDouble();
+                    if (sig.TryGetProperty("color", out var colEl)) deviceSignal.Color = colEl.GetString() ?? "#6C757D";
+
+                    deviceSignal.Samples.Clear();
+
+                    if (sig.TryGetProperty("samples", out var samplesEl) &&
+                        samplesEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var sampleEl in samplesEl.EnumerateArray())
+                        {
+                            try
+                            {
+                                var sp = new SamplePoint
+                                {
+                                    T = sampleEl.GetProperty("t").GetDouble(),
+                                    Value = sampleEl.GetProperty("value").GetDouble()
+                                };
+
+                                deviceSignal.Samples.Add(sp);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Error parsing sample");
+                            }
+                        }
+                    }
+
+                    long ms = (long)(packetTime * 1000.0);
+                    deviceSignal.Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(ms).LocalDateTime;
+
+                    SignalReceived?.Invoke(this, deviceSignal);
                 }
             }
-            catch (JsonException ex)
+            catch (Exception ex)
             {
-                _logger.LogWarning(ex, $"Failed to deserialize message: {message}");
+                _logger.LogWarning(ex, $"Failed to parse message: {message}");
             }
         }
+
 
         private void UpdateStatus(ConnectionStatus newStatus)
         {

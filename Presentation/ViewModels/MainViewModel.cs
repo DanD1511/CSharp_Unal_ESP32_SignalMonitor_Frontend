@@ -168,7 +168,6 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
                         var existing = Signals[index];
                         existing.Value = signal.Value;
                         existing.Timestamp = signal.Timestamp;
-                        existing.Type = signal.Type;
                         existing.Unit = signal.Unit;
                         existing.Color = signal.Color;
                         existing.MinValue = signal.MinValue;
