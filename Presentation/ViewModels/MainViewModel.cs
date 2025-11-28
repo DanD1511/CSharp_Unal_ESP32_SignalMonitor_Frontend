@@ -20,9 +20,12 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
         private readonly Dictionary<string, SignalCardViewModel> _signalViewModels = new();
         private DetailWindow? _detailWindow;
 
-        [ObservableProperty] private string _deviceIpAddress = "192.168.18.52";
+        //[ObservableProperty] private string _deviceIpAddress = "192.168.18.52";
 
-        [ObservableProperty] private int _devicePort = 80;
+        [ObservableProperty] private string _deviceIpAddress = "localhost";
+
+
+        [ObservableProperty] private int _devicePort = 8080;
 
         [ObservableProperty] private bool _isConnected = false;
 

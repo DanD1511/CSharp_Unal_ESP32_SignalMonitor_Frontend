@@ -1,7 +1,10 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using CSharp_WPF_Websockets.Domain.Entities;
 using CSharp_WPF_Websockets.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -100,7 +103,7 @@ namespace CSharp_WPF_Websockets.Infrastructure.Repositories
 
         private async Task ReceiveLoop(CancellationToken cancellationToken)
         {
-            var buffer = new byte[8192]; 
+            var buffer = new byte[8192];
             var messageBuffer = new ArraySegment<byte>(buffer);
 
             using var ms = new MemoryStream();
@@ -146,10 +149,24 @@ namespace CSharp_WPF_Websockets.Infrastructure.Repositories
                 using var doc = JsonDocument.Parse(message);
                 var root = doc.RootElement;
 
-                double packetTime = 0;
-                if (root.TryGetProperty("timestamp", out var ts))
+                // CORRECCIÓN AQUÍ:
+                // Inicializamos con la hora actual por defecto
+                DateTime packetTimestamp = DateTime.Now;
+
+                // Intentamos leer la propiedad "timestamp"
+                if (root.TryGetProperty("timestamp", out var tsElement))
                 {
-                    packetTime = ts.GetDouble();
+                    // Si el servidor envía un STRING (formato ISO 8601 nuevo)
+                    if (tsElement.ValueKind == JsonValueKind.String)
+                    {
+                        packetTimestamp = tsElement.GetDateTime();
+                    }
+                    // Si el servidor envía un NÚMERO (formato Unix antiguo - compatibilidad)
+                    else if (tsElement.ValueKind == JsonValueKind.Number)
+                    {
+                        double unixSeconds = tsElement.GetDouble();
+                        packetTimestamp = DateTimeOffset.FromUnixTimeMilliseconds((long)(unixSeconds * 1000)).LocalDateTime;
+                    }
                 }
 
                 if (!root.TryGetProperty("signals", out var signalsElement) ||
@@ -194,8 +211,8 @@ namespace CSharp_WPF_Websockets.Infrastructure.Repositories
                         }
                     }
 
-                    long ms = (long)(packetTime * 1000.0);
-                    deviceSignal.Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(ms).LocalDateTime;
+                    // CORRECCIÓN FINAL: Asignamos el timestamp procesado arriba
+                    deviceSignal.Timestamp = packetTimestamp;
 
                     SignalReceived?.Invoke(this, deviceSignal);
                 }
@@ -205,7 +222,6 @@ namespace CSharp_WPF_Websockets.Infrastructure.Repositories
                 _logger.LogWarning(ex, $"Failed to parse message: {message}");
             }
         }
-
 
         private void UpdateStatus(ConnectionStatus newStatus)
         {
@@ -222,6 +238,5 @@ namespace CSharp_WPF_Websockets.Infrastructure.Repositories
             _webSocket?.Dispose();
             _cancellationTokenSource?.Dispose();
         }
-
     }
 }

@@ -231,7 +231,7 @@
             <ItemsControl ItemsSource="{Binding SignalCards}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <UniformGrid Columns="2" HorizontalAlignment="Stretch"/>
+                        <UniformGrid Columns="1" HorizontalAlignment="Stretch"/>
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
 
