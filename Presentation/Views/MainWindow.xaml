@@ -1,59 +1,154 @@
 ﻿<Window x:Class="CSharp_WPF_Websockets.Presentation.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="clr-namespace:CSharp_WPF_Websockets.Presentation.Views"
-        xmlns:converters="clr-namespace:CSharp_WPF_Websockets.Presentation.Converters"
-        Title="ESP32 Monitor" WindowState="Maximized"
-        Height="800" Width="1200"
+        mc:Ignorable="d"
+        Title="ESP32 Signal Monitor" Height="900" Width="1600"
         WindowStartupLocation="CenterScreen"
-        Background="#FF1A1A1A"
-        FontFamily="Segoe UI"
-        FontWeight="Light">
+        WindowState="Maximized"
+        Background="Transparent"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True">
 
     <Window.Resources>
-        <SolidColorBrush x:Key="DarkBackground" Color="#FF1A1A1A"/>
-        <SolidColorBrush x:Key="DarkCard" Color="#FF2A2A2A"/>
-        <SolidColorBrush x:Key="DarkBorder" Color="#FF404040"/>
-        <SolidColorBrush x:Key="AccentColor" Color="#FF0078D4"/>
-        <SolidColorBrush x:Key="TextPrimary" Color="#FFE1E1E1"/>
-        <SolidColorBrush x:Key="TextSecondary" Color="#FF9A9A9A"/>
-        <SolidColorBrush x:Key="SuccessColor" Color="#FF28A745"/>
-        <SolidColorBrush x:Key="ErrorColor" Color="#FFDC3545"/>
-        <SolidColorBrush x:Key="SelectedColor" Color="#FF4ECDC4"/>
+        <!-- PALETA DE COLORES (LIGHT THEME PRO) -->
+        <SolidColorBrush x:Key="BgDeep" Color="#FFF5F7FA"/>
+        <!-- Fondo Gris Muy Claro -->
+        <SolidColorBrush x:Key="BgCard" Color="#FFFFFFFF"/>
+        <!-- Tarjeta Blanca Pura -->
+        <SolidColorBrush x:Key="BgHover" Color="#FFF0F2F5"/>
 
-        <Storyboard x:Key="StatusPulse" RepeatBehavior="Forever">
-            <DoubleAnimation Storyboard.TargetName="StatusIndicator"
-                           Storyboard.TargetProperty="Opacity"
-                           From="0.8" To="1.0" Duration="0:0:2"
-                           AutoReverse="True"/>
-        </Storyboard>
+        <SolidColorBrush x:Key="AccentColor" Color="#FF0984E3"/>
+        <!-- Azul Profesional -->
+        <SolidColorBrush x:Key="AccentLight" Color="#EBF5FB"/>
+        <!-- Azul Muy Claro (Fondo selección) -->
+        <SolidColorBrush x:Key="ErrorColor" Color="#D63031"/>
+        <SolidColorBrush x:Key="SuccessColor" Color="#00B894"/>
 
-        <Style x:Key="MinimalButton" TargetType="Button">
+        <SolidColorBrush x:Key="BorderColor" Color="#E2E8F0"/>
+
+        <SolidColorBrush x:Key="TextPrimary" Color="#FF2D3436"/>
+        <!-- Gris Casi Negro -->
+        <SolidColorBrush x:Key="TextSecondary" Color="#FF636E72"/>
+        <!-- Gris Medio -->
+        <SolidColorBrush x:Key="TextMuted" Color="#FFB2BEC3"/>
+        <!-- Gris Claro -->
+
+        <!-- SOMBRAS (ELEVATION) -->
+        <DropShadowEffect x:Key="CardShadow" BlurRadius="10" ShadowDepth="2" Direction="270" Color="#DCE1E6" Opacity="0.5"/>
+        <DropShadowEffect x:Key="HeaderShadow" BlurRadius="5" ShadowDepth="1" Direction="270" Color="#DCE1E6" Opacity="0.3"/>
+
+        <!-- ESTILO SCROLLBAR (Minimalista Gris) -->
+        <Style TargetType="{x:Type ScrollBar}">
+            <Setter Property="Stylus.IsPressAndHoldEnabled" Value="false"/>
+            <Setter Property="Stylus.IsFlicksEnabled" Value="false"/>
+            <Setter Property="Width" Value="10"/>
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="{StaticResource DarkBorder}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-            <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollBar}">
+                        <Grid x:Name="Bg" SnapsToDevicePixels="true">
+                            <Track x:Name="PART_Track" IsDirectionReversed="true">
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Style>
+                                            <Style TargetType="{x:Type Thumb}">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="{x:Type Thumb}">
+                                                            <Border Background="#CBD5E0" CornerRadius="4"/>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="Background" Value="#A0AEC0"/>
+                                                                    <!-- Más oscuro al hover -->
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </Thumb.Style>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- BOTÓN DE LAYOUT (ICONOS MATRIZ) -->
+        <Style x:Key="LayoutButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Margin" Value="4,0"/>
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Margin="{TemplateBinding Padding}"/>
+                        <Border x:Name="bdr" Background="{TemplateBinding Background}" 
+                                BorderBrush="{StaticResource AccentColor}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{StaticResource AccentColor}"/>
-                                <Setter Property="BorderBrush" Value="{StaticResource AccentColor}"/>
+                                <Setter TargetName="bdr" Property="Background" Value="#E2E8F0"/>
                             </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.5"/>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bdr" Property="Background" Value="#CBD5E0"/>
+                            </Trigger>
+                            <!-- Estado activo simulado (puedes bindearlo si quieres) -->
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ESTILO PATH ICON (LAYOUTS) -->
+        <Style x:Key="IconPath" TargetType="Path">
+            <Setter Property="Fill" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="Stretch" Value="Uniform"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="Width" Value="16"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                    <Setter Property="Fill" Value="{StaticResource AccentColor}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- BOTÓN PRINCIPAL (CONNECT/ETC) -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource AccentColor}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="20,8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="brd" Background="{TemplateBinding Background}" CornerRadius="6" Effect="{StaticResource HeaderShadow}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="brd" Property="Background" Value="#FF0A75C9"/>
+                                <!-- Azul un poco más oscuro -->
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="brd" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="0.98" ScaleY="0.98"/>
+                                    </Setter.Value>
+                                </Setter>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -61,26 +156,58 @@
             </Setter>
         </Style>
 
-        <Style x:Key="MinimalTextBox" TargetType="TextBox">
+        <!-- BOTÓN SECUNDARIO (STOP/REFRESH) -->
+        <Style x:Key="GhostButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="{StaticResource DarkBorder}"/>
-            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-            <Setter Property="Padding" Value="4,8"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="Padding" Value="15,8"/>
             <Setter Property="FontSize" Value="14"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="brd" Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="brd" Property="Background" Value="{StaticResource BgHover}"/>
+                                <Setter TargetName="brd" Property="BorderBrush" Value="{StaticResource TextSecondary}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- INPUT TEXTBOX -->
+        <Style x:Key="ModernTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}">
-                            <ScrollViewer x:Name="PART_ContentHost"
-                                        Margin="{TemplateBinding Padding}"/>
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="4">
+                            <ScrollViewer x:Name="PART_ContentHost"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource AccentColor}"/>
-                                <Setter Property="BorderThickness" Value="0,0,0,2"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource AccentColor}"/>
+                                <Setter TargetName="bd" Property="BorderThickness" Value="1.5"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -88,213 +215,184 @@
             </Setter>
         </Style>
 
-        <Style x:Key="SelectToggleButton" TargetType="ToggleButton">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="{StaticResource DarkBorder}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="3">
-                            <StackPanel Orientation="Horizontal" 
-                                      HorizontalAlignment="Center"
-                                      Margin="{TemplateBinding Padding}">
-                                <Ellipse Width="8" Height="8" 
-                                       Fill="{TemplateBinding Foreground}"
-                                       Margin="0,0,4,0"/>
-                                <TextBlock Text="Select" 
-                                         Foreground="{TemplateBinding Foreground}"
-                                         FontSize="10"/>
-                            </StackPanel>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter Property="Background" Value="{StaticResource SelectedColor}"/>
-                                <Setter Property="BorderBrush" Value="{StaticResource SelectedColor}"/>
-                                <Setter Property="Foreground" Value="#FF1A1A1A"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource SelectedColor}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </Window.Resources>
 
-    <Grid>
+    <Grid Background="{StaticResource BgDeep}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="60"/>
-            <RowDefinition Height="80"/>
+            <RowDefinition Height="Auto"/>
+            <!-- Header -->
             <RowDefinition Height="*"/>
+            <!-- Content -->
             <RowDefinition Height="40"/>
+            <!-- Status Bar -->
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="{StaticResource DarkCard}" 
-                BorderBrush="{StaticResource DarkBorder}" BorderThickness="0,0,0,1">
-            <Grid Margin="30,0">
+        <!-- 1. HEADER BAR -->
+        <Border Grid.Row="0" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1" Padding="20,15" Effect="{StaticResource HeaderShadow}">
+            <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <!-- Title -->
+                    <ColumnDefinition Width="*"/>
+                    <!-- Spacer -->
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- Controls -->
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse Width="8" Height="8" Fill="{StaticResource AccentColor}" 
-                             Margin="0,0,12,0"/>
-                    <TextBlock Text="ESP32 Monitor" 
-                             Foreground="{StaticResource TextPrimary}"
-                             FontSize="18" FontWeight="Light"/>
+                <!-- LOGO & TITULO -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="{StaticResource AccentColor}" CornerRadius="4" Width="8" Height="24" Margin="0,0,12,0"/>
+                    <TextBlock Text="ESP32" FontWeight="Bold" FontSize="22" Foreground="{StaticResource TextPrimary}"/>
+                    <TextBlock Text="Monitor" FontWeight="Regular" FontSize="22" Foreground="{StaticResource TextSecondary}" Margin="6,0,0,0"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse x:Name="StatusIndicator"
-                             Width="6" Height="6"
-                             Fill="{Binding ConnectionStatusColor}"
-                             Margin="0,0,8,0"/>
-                    <TextBlock Text="{Binding ConnectionStatus}" 
-                             Foreground="{StaticResource TextSecondary}"
-                             FontSize="12"/>
-                </StackPanel>
-            </Grid>
-        </Border>
+                <!-- CONTROLES -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
 
-        <Border Grid.Row="1" Background="{StaticResource DarkCard}" Margin="0,0,0,1">
-            <Grid Margin="30,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="IP" Foreground="{StaticResource TextSecondary}" 
-                               VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
-                    <TextBox Text="{Binding DeviceIpAddress, UpdateSourceTrigger=PropertyChanged}"
-                            Style="{StaticResource MinimalTextBox}"
-                            Width="120" Margin="0,0,20,0"/>
-
-                    <TextBlock Text="Port" Foreground="{StaticResource TextSecondary}" 
-                               VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
-                    <TextBox Text="{Binding DevicePort, UpdateSourceTrigger=PropertyChanged}"
-                            Style="{StaticResource MinimalTextBox}"
-                            Width="60"/>
-                </StackPanel>
-
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Command="{Binding ConnectCommand}"
-                           Style="{StaticResource MinimalButton}"
-                           Margin="0,0,8,0">
-                        <TextBlock Text="Connect" FontSize="12"/>
-                    </Button>
-
-                    <Button Command="{Binding DisconnectCommand}"
-                           Style="{StaticResource MinimalButton}"
-                           BorderBrush="{StaticResource ErrorColor}"
-                           Margin="0,0,8,0">
-                        <TextBlock Text="Disconnect" Foreground="{StaticResource ErrorColor}" FontSize="12"/>
-                    </Button>
-
-                    <Button Command="{Binding RefreshCommand}"
-                           Style="{StaticResource MinimalButton}"
-                           Margin="0,0,16,0"
-                           Padding="8">
-                        <Ellipse Width="4" Height="4" Fill="{StaticResource TextSecondary}"/>
-                    </Button>
-
-                    <Border Width="1" Background="{StaticResource DarkBorder}" Margin="0,12"/>
-
-                    <Button Command="{Binding OpenDetailWindowCommand}"
-                           Style="{StaticResource MinimalButton}"
-                           BorderBrush="{StaticResource SelectedColor}"
-                           Margin="16,0,0,0">
+                    <!-- SELECTOR DE LAYOUT (MATRICES) -->
+                    <Border Background="{StaticResource BgHover}" CornerRadius="8" Padding="4" Margin="0,0,30,0">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="📊" FontSize="12" Margin="0,0,4,0"/>
-                            <TextBlock Text="Detail View" FontSize="12"/>
-                            <TextBlock Text="{Binding SelectedSignalsCount, StringFormat=' ({0})'}" 
-                                     FontSize="10" 
-                                     Foreground="{StaticResource SelectedColor}"
-                                     VerticalAlignment="Center"
-                                     Margin="2,0,0,0"/>
+                            <!-- 1 Columna (Cuadrado lleno) -->
+                            <Button Style="{StaticResource LayoutButton}" Command="{Binding SetGridColumnsCommand}" CommandParameter="1" ToolTip="Single View">
+                                <Path Style="{StaticResource IconPath}" Data="M2,2 H14 V14 H2 Z"/>
+                            </Button>
+                            <!-- 2 Columnas (Dos barras verticales) -->
+                            <Button Style="{StaticResource LayoutButton}" Command="{Binding SetGridColumnsCommand}" CommandParameter="2" ToolTip="Split View">
+                                <Path Style="{StaticResource IconPath}" Data="M2,2 H7 V14 H2 Z M9,2 H14 V14 H9 Z"/>
+                            </Button>
+                            <!-- 3 Columnas (Grid 3x3 simplificado - 3 columnas) -->
+                            <Button Style="{StaticResource LayoutButton}" Command="{Binding SetGridColumnsCommand}" CommandParameter="3" ToolTip="Grid View (3)">
+                                <Path Style="{StaticResource IconPath}" Data="M1,2 H5 V14 H1 Z M6,2 H10 V14 H6 Z M11,2 H15 V14 H11 Z"/>
+                            </Button>
+                            <!-- 4 Columnas (Grid Matriz 2x2) -->
+                            <Button Style="{StaticResource LayoutButton}" Command="{Binding SetGridColumnsCommand}" CommandParameter="4" ToolTip="Matrix View (4)">
+                                <Path Style="{StaticResource IconPath}" Data="M1,1 H7 V7 H1 Z M9,1 H15 V7 H9 Z M1,9 H7 V15 H1 Z M9,9 H15 V15 H9 Z"/>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- CONEXIÓN -->
+                    <TextBlock Text="IP Address" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}" FontSize="12" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                    <TextBox Text="{Binding DeviceIpAddress, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="140" Margin="0,0,20,0"/>
+
+                    <TextBlock Text="Port" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}" FontSize="12" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                    <TextBox Text="{Binding DevicePort, UpdateSourceTrigger=PropertyChanged, FallbackValue=8080}" Style="{StaticResource ModernTextBox}" Width="70" Margin="0,0,25,0"/>
+
+                    <Button Command="{Binding ConnectCommand}" Style="{StaticResource PrimaryButton}" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="▶" Margin="0,1,8,0" FontSize="10"/>
+                            <TextBlock Text="Connect"/>
                         </StackPanel>
                     </Button>
+
+                    <Button Command="{Binding DisconnectCommand}" Style="{StaticResource GhostButton}" Margin="0,0,10,0" Foreground="{StaticResource ErrorColor}" BorderBrush="#FFEBEE">
+                        <TextBlock Text="Stop" FontWeight="SemiBold"/>
+                    </Button>
+
+                    <Button Command="{Binding RefreshCommand}" Style="{StaticResource GhostButton}" Width="45" Padding="0" ToolTip="Reset Charts">
+                        <TextBlock Text="↻" FontSize="18" FontWeight="Bold" Margin="0,-2,0,0"/>
+                    </Button>
+
                 </StackPanel>
             </Grid>
         </Border>
 
-        <ScrollViewer Grid.Row="2" Background="{StaticResource DarkBackground}"
-                      VerticalScrollBarVisibility="Auto" Margin="20,20,20,0">
-            <ItemsControl ItemsSource="{Binding SignalCards}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <UniformGrid Columns="1" HorizontalAlignment="Stretch"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
+        <!-- 2. CONTENT AREA -->
+        <Grid Grid.Row="1">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="15">
+                <ItemsControl ItemsSource="{Binding SignalCards}">
 
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Background="{StaticResource DarkCard}"
-                                BorderBrush="{StaticResource DarkBorder}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Margin="20"
-                                Padding="20">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
+                    <!-- PANEL DINÁMICO -->
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="{Binding DataContext.GridColumns, RelativeSource={RelativeSource AncestorType=ItemsControl}}" 
+                                         VerticalAlignment="Top" 
+                                         IsItemsHost="True"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
 
-                                <ToggleButton Grid.Row="0" 
-                                            Style="{StaticResource SelectToggleButton}"
-                                            IsChecked="{Binding IsSelected}"
-                                            HorizontalAlignment="Right"
-                                            Margin="0,0,0,8"/>
+                    <!-- TARJETA (ITEM) -->
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{StaticResource BgCard}" 
+                                    BorderThickness="1" 
+                                    BorderBrush="{StaticResource BorderColor}"
+                                    CornerRadius="8" 
+                                    Margin="8" Height="auto"
+                                    MinHeight="500"
+                                    Effect="{StaticResource CardShadow}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
 
-                                <views:SignalCard Grid.Row="1"/>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+                                    <!-- Card Header -->
+                                    <Grid Grid.Row="0" Margin="16,12">
+                                        <StackPanel Orientation="Horizontal">
+                                            <!-- Indicador de color circular -->
+                                            <Ellipse Width="10" Height="10" Fill="{Binding Signal.Color}" Margin="0,0,10,0"/>
+                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="15" Foreground="{StaticResource TextPrimary}"/>
+                                        </StackPanel>
 
-        <Border Grid.Row="3" Background="{StaticResource DarkCard}">
-            <Grid Margin="30,0">
+                                        <!-- Checkbox de selección personalizado -->
+                                        <ToggleButton IsChecked="{Binding IsSelected}" HorizontalAlignment="Right" Cursor="Hand">
+                                            <ToggleButton.Template>
+                                                <ControlTemplate TargetType="ToggleButton">
+                                                    <Border x:Name="tb" Background="Transparent" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="4" Padding="8,4">
+                                                        <TextBlock x:Name="txt" Text="Select" FontSize="11" Foreground="{StaticResource TextSecondary}"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="tb" Property="Background" Value="{StaticResource AccentLight}"/>
+                                                            <Setter TargetName="tb" Property="BorderBrush" Value="{StaticResource AccentColor}"/>
+                                                            <Setter TargetName="txt" Property="Foreground" Value="{StaticResource AccentColor}"/>
+                                                            <Setter TargetName="txt" Property="Text" Value="Selected ✓"/>
+                                                            <Setter TargetName="txt" Property="FontWeight" Value="Bold"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="tb" Property="Background" Value="{StaticResource BgHover}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </ToggleButton.Template>
+                                        </ToggleButton>
+                                    </Grid>
+
+                                    <!-- Separador tenue -->
+                                    <Border Grid.Row="0" VerticalAlignment="Bottom" Height="1" Background="{StaticResource BorderColor}" Opacity="0.5"/>
+
+                                    <!-- Gráfico -->
+                                    <views:SignalCard Grid.Row="1" Margin="10"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- 3. STATUS BAR -->
+        <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,0" Padding="20,0">
+            <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="0" Text="{Binding DeviceName}" 
-                          Foreground="{StaticResource TextSecondary}"
-                          VerticalAlignment="Center" FontSize="11"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Fill="{Binding ConnectionStatusColor}" Margin="0,0,10,0"/>
+                    <TextBlock Text="{Binding ConnectionStatus}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+                </StackPanel>
 
-                <TextBlock Grid.Column="1" 
-                          Foreground="{StaticResource TextSecondary}"
-                          VerticalAlignment="Center" FontSize="11"
-                          Margin="0,0,16,0">
-                    <Run Text="Selected:"/>
-                    <Run Text="{Binding SelectedSignalsCount, Mode=OneWay}"/>
-                    <Run Text="/ 3"/>
-                </TextBlock>
-
-                <TextBlock Grid.Column="2" 
-                          Text="{Binding LastUpdate, StringFormat='{}{0:HH:mm:ss}'}"
-                          Foreground="{StaticResource TextSecondary}"
-                          VerticalAlignment="Center" FontSize="11"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="{StaticResource BgHover}" CornerRadius="4" Padding="8,2" Margin="0,0,15,0">
+                        <TextBlock Text="Render: 60 FPS" Foreground="{StaticResource TextSecondary}" FontSize="11" FontWeight="Bold"/>
+                    </Border>
+                    <TextBlock Text="{Binding LastUpdate, StringFormat='{}Updated: {0:HH:mm:ss}'}" Foreground="{StaticResource TextMuted}" FontSize="12"/>
+                </StackPanel>
             </Grid>
         </Border>
     </Grid>
-
-    <Window.Triggers>
-        <EventTrigger RoutedEvent="Loaded">
-            <BeginStoryboard Storyboard="{StaticResource StatusPulse}"/>
-        </EventTrigger>
-    </Window.Triggers>
 </Window>

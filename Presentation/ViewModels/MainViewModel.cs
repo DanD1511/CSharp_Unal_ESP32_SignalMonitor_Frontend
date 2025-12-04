@@ -24,6 +24,18 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
 
         [ObservableProperty] private string _deviceIpAddress = "localhost";
 
+        [ObservableProperty]
+        private int _gridColumns = 3;
+
+        // 2. Agrega este Nuevo Comando para los botones
+        [RelayCommand]
+        private void SetGridColumns(string columns)
+        {
+            if (int.TryParse(columns, out int result))
+            {
+                GridColumns = result;
+            }
+        }
 
         [ObservableProperty] private int _devicePort = 8080;
 

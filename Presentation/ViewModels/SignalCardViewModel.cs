@@ -19,36 +19,20 @@ using SkiaSharp;
 
 namespace CSharp_WPF_Websockets.Presentation.ViewModels
 {
-    /// <summary>
-    /// SignalCardViewModel version with a thread-safe raw buffer, DSP worker
-    /// that performs windowed-sinc (bandlimited) interpolation and resamples
-    /// the incoming irregular samples to a fixed 100 Hz grid. The UI is updated
-    /// in batches every 200 ms.
-    ///
-    /// Notes:
-    /// - This class intends to be drop-in as a replacement for the previous
-    ///   viewmodel. It keeps the LiveCharts hookup but changes the data pipeline.
-    /// - All timestamps MUST come from the server (DeviceSignal.Timestamp).
-    /// - The sinc interpolation uses a Lanczos window to limit kernel aliasing.
-    ///
-    /// Divine commentary: The code is blessed with careful locking and respectful
-    /// humor. Use wisely and may your waves be smooth.
-    /// </summary>
     public partial class SignalCardViewModel : ObservableObject, IDisposable
     {
-        // ---------- Original properties & fields (kept for UI compatibility) ----------
+        // ---------- Original properties & fields ----------
         private DeviceSignal _deviceSignal;
 
-        // UI throttling and timers
-        private readonly DispatcherTimer _uiUpdateTimer;        // used to coalesce UI property notifications
-        private readonly DispatcherTimer _cleanupTimer;         // remove old points
+        private readonly DispatcherTimer _uiUpdateTimer;
+        private readonly DispatcherTimer _cleanupTimer;
         private bool _pendingUIUpdate = false;
         private bool _pendingChartUpdate = false;
         private readonly object _uiUpdateLock = new object();
 
-        // Chart throttling
         private DateTime _lastChartUpdate = DateTime.MinValue;
-        private readonly TimeSpan _chartUpdateThreshold = TimeSpan.FromMilliseconds(50); // 20 FPS internal axis updates
+        // Refrescamos ejes más rápido para señales rápidas
+        private readonly TimeSpan _chartUpdateThreshold = TimeSpan.FromMilliseconds(30);
 
         public ObservableCollection<ISeries> ChartSeries { get; } = new();
         public ObservableCollection<DateTimePoint> ChartValues { get; } = new();
@@ -58,7 +42,6 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
         [ObservableProperty] private bool _isSelected = false;
         [ObservableProperty] private LineSeries<DateTimePoint> _lineSeriesChart;
 
-        // ===== scaling properties =====
         [ObservableProperty] private bool _isAutoScale = true;
         [ObservableProperty] private double _yMin = 0;
         [ObservableProperty] private double _yMax = 3.3;
@@ -71,52 +54,45 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
 
         public object Sync { get; } = new object();
 
-        // ---------- NEW: DSP pipeline fields ----------
-        // Raw sample queue filled by UpdateSignal (producer)
+        // ---------- DSP pipeline fields ----------
         private readonly ConcurrentQueue<RawSample> _rawQueue = new();
-
-        // Resampled output queue (produced by DSP thread, consumed by UI timer)
         private readonly ConcurrentQueue<DateTimePoint> _resampledQueue = new();
-
-        // DSP Worker cancellation
         private readonly CancellationTokenSource _dspCts = new();
         private Task _dspTask;
 
-        // Resampling configuration
-        private readonly double _targetSampleRate = 100.0; // Hz (as requested)
+        // --- CORRECCIÓN CRÍTICA PARA 100Hz ---
+        // Necesitamos al menos 2.5x la frecuencia máxima. 
+        // 100Hz * 5 = 500Hz nos dará una señal muy fiel.
+        private readonly double _targetSampleRate = 500.0;
+
         private readonly double _targetSamplePeriodMs;
-
-        // Sinc kernel parameters
-        private readonly double _sincCutoffHz; // cutoff frequency (Hz)
-        private readonly double _kernelHalfWidthSec; // how many seconds each side we use
-        private readonly int _kernelHalfWidthSamplesApprox; // convenience estimate
-
-        // Keep track of last resample time to avoid overlap
+        private readonly double _sincCutoffHz;
+        private readonly double _kernelHalfWidthSec;
+        private readonly int _kernelHalfWidthSamplesApprox;
         private DateTime _lastResampleTime = DateTime.MinValue;
 
-        // For diagnostics
         private long _totalRawReceived = 0;
         private long _totalResampledProduced = 0;
 
-        // Constructor
         public SignalCardViewModel(DeviceSignal deviceSignal)
         {
             _deviceSignal = deviceSignal ?? throw new ArgumentNullException(nameof(deviceSignal));
 
-            // default params
-            _targetSamplePeriodMs = 1000.0 / _targetSampleRate; // 10ms for 100Hz
-            _sincCutoffHz = 0.5 * _targetSampleRate; // Nyquist for target (50Hz) - typical low-pass cutoff
-            _kernelHalfWidthSec = 0.06; // ±60 ms window -> reasonable for 60Hz content
-            _kernelHalfWidthSamplesApprox = (int)Math.Ceiling(_kernelHalfWidthSec * 1000.0 / 1.0); // rough
+            _targetSamplePeriodMs = 1000.0 / _targetSampleRate;
 
-            // UI update timer (batch UI notifications)
+            // Nyquist en 250Hz. Esto permite pasar señales de 100Hz sin atenuación.
+            _sincCutoffHz = 0.5 * _targetSampleRate;
+
+            // Ajustamos la ventana del kernel para ser más rápida (menos latencia)
+            _kernelHalfWidthSec = 0.02; // 20ms de ventana
+            _kernelHalfWidthSamplesApprox = (int)Math.Ceiling(_kernelHalfWidthSec * 1000.0 / 1.0);
+
             _uiUpdateTimer = new DispatcherTimer(DispatcherPriority.Background)
             {
-                Interval = TimeSpan.FromMilliseconds(200) // send to UI every 200ms
+                Interval = TimeSpan.FromMilliseconds(100) // UI update un poco más rápido
             };
             _uiUpdateTimer.Tick += OnUIUpdateTimer;
 
-            // Cleanup timer removes old points every 2 seconds
             _cleanupTimer = new DispatcherTimer(DispatcherPriority.Background)
             {
                 Interval = TimeSpan.FromSeconds(2)
@@ -127,13 +103,11 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
             InitializeChart();
             InitializeScaleDefaults();
 
-            // Start DSP thread
             _dspTask = Task.Run(() => DspWorkerLoopAsync(_dspCts.Token));
 
-            Debug.WriteLine($"[{_deviceSignal.Name}] DSP pipeline started - targetRate={_targetSampleRate}Hz, cutoff={_sincCutoffHz}Hz, kernelHalfWidth={_kernelHalfWidthSec}s");
+            Debug.WriteLine($"[{_deviceSignal.Name}] DSP pipeline started - targetRate={_targetSampleRate}Hz");
         }
 
-        // ------------------- Original view model properties (kept mostly intact) -------------------
         public string Name => _deviceSignal.Name;
         public double Value => _deviceSignal.Value;
         public string Unit => _deviceSignal.Unit;
@@ -170,7 +144,6 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
             }
         }
 
-        // ------------------- Chart initialization -------------------
         private void InitializeChart()
         {
             LineSeriesChart = new LineSeries<DateTimePoint>
@@ -181,7 +154,9 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
                 GeometryStroke = null,
                 GeometryFill = null,
                 AnimationsSpeed = TimeSpan.Zero,
-                EnableNullSplitting = false
+                EnableNullSplitting = false,
+                // Optimizamos el renderizado para muchos puntos
+                Stroke = new SolidColorPaint(SKColor.Parse(_deviceSignal.Color ?? "#1ABC9C")) { StrokeThickness = 1 }
             };
 
             ChartSeries.Clear();
@@ -190,27 +165,14 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
 
         private void InitializeScaleDefaults()
         {
-            var currentValue = _deviceSignal.Value;
-
             _manualYMin = _yMin;
             _manualYMax = _yMax;
             _manualTimeWindow = _timeWindowMinutes;
-
             CreateAxes();
         }
 
-        private TimeSpan GetTimeStep()
-        {
-            // Paso recomendado para señales rápidas o lentas:
-            return TimeSpan.FromMilliseconds(50); // 20 FPS en el eje
-        }
-
-
-        private Func<DateTime, string> GetTimeFormatter()
-        {
-            return date => date.ToString("HH:mm:ss.fff");
-        }
-
+        private TimeSpan GetTimeStep() => TimeSpan.FromMilliseconds(50);
+        private Func<DateTime, string> GetTimeFormatter() => date => date.ToString("HH:mm:ss.fff");
 
         private void CreateAxes()
         {
@@ -223,7 +185,7 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
                 {
                     Name = "Tiempo",
                     LabelsPaint = new SolidColorPaint(SKColors.LightGray),
-                    TextSize = 8,
+                    TextSize = 10,
                     MinLimit = (now - timeWindow).Ticks,
                     MaxLimit = now.Ticks,
                     ForceStepToMin = false,
@@ -236,7 +198,7 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
                 new Axis
                 {
                     LabelsPaint = new SolidColorPaint(SKColors.LightGray),
-                    TextSize = 8,
+                    TextSize = 10,
                     MinLimit = _yMin,
                     MaxLimit = _yMax,
                     ForceStepToMin = false,
@@ -245,27 +207,19 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
             };
         }
 
-        // ------------------- New: Add raw sample to queue -------------------
-        /// <summary>
-        /// Called by repository when a DeviceSignal arrives. We ENQUEUE the raw sample
-        /// (timestamp from server MUST be used). We do NOT discard samples here.
-        /// </summary>
         public void UpdateSignal(DeviceSignal newSignal)
         {
             if (newSignal == null) return;
-
-            // Actualizamos metadata (nombre, unidad, color)
             _deviceSignal = newSignal;
 
-            // Timestamp base del paquete
+            // Como arreglamos el repositorio, newSignal.Timestamp ya es el DateTime correcto
+            // pero internamente trabajamos con UTC para el DSP
             DateTime baseTsUtc = newSignal.Timestamp.ToUniversalTime();
 
-            // Cada signal trae varios samples
             if (newSignal.Samples != null)
             {
                 foreach (var sp in newSignal.Samples)
                 {
-                    // El tiempo T viene en segundos relativos
                     DateTime sampleTime = baseTsUtc.AddSeconds(sp.T);
 
                     var raw = new RawSample
@@ -279,7 +233,6 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
                 }
             }
 
-            // Despertar el UI coalesced update
             lock (_uiUpdateLock)
             {
                 _pendingUIUpdate = true;
@@ -288,59 +241,42 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
             }
         }
 
-
-        // ------------------- DSP worker loop -------------------
         private async Task DspWorkerLoopAsync(CancellationToken ct)
         {
-            // We'll resample at fixed 100Hz grid. We'll produce resampled points continuously
-            // for the visible window. To avoid producing excessive points we will produce
-            // resampled samples up to "now - smallLatency" where smallLatency is e.g. 20ms.
-
             var smallLatency = TimeSpan.FromMilliseconds(20);
-            _lastResampleTime = DateTime.UtcNow; // start
+            _lastResampleTime = DateTime.UtcNow;
 
-            // Buffer used to accumulate raw samples dequeued from _rawQueue
             var rawList = new System.Collections.Generic.List<RawSample>();
 
             try
             {
                 while (!ct.IsCancellationRequested)
                 {
-                    // Dequeue all available raw samples quickly
                     rawList.Clear();
                     while (_rawQueue.TryDequeue(out var s))
                     {
                         rawList.Add(s);
                     }
 
-                    // If we have no new raw samples, short sleep and continue
                     if (rawList.Count == 0)
                     {
-                        await Task.Delay(5, ct).ConfigureAwait(false);
+                        await Task.Delay(2, ct).ConfigureAwait(false); // Menor delay para 500Hz
                         continue;
                     }
 
-                    // We append the raw samples to an internal history list used for interpolation.
-                    // To avoid unbounded growth we keep only a few seconds worth (e.g., 3s)
                     AppendToHistory(rawList);
 
-                    // Compute how far forward we should resample: up to now - smallLatency
                     var resampleUpTo = DateTime.UtcNow - smallLatency;
 
-                    // Determine next resample time aligned to target rate
                     if (_lastResampleTime == DateTime.MinValue)
                         _lastResampleTime = resampleUpTo - TimeSpan.FromMilliseconds(_targetSamplePeriodMs);
 
                     var nextTime = _lastResampleTime + TimeSpan.FromMilliseconds(_targetSamplePeriodMs);
-
-                    // Produce resampled points from nextTime up to resampleUpTo
                     var produced = 0;
+
                     while (nextTime <= resampleUpTo)
                     {
-                        // Perform sinc-based interpolation at nextTime (UTC)
                         var value = SincInterpolate(nextTime);
-
-                        // Create DateTimePoint using local kind for charting (convert to local)
                         var point = new DateTimePoint(nextTime.ToLocalTime(), value);
                         _resampledQueue.Enqueue(point);
                         Interlocked.Increment(ref _totalResampledProduced);
@@ -350,16 +286,8 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
                         nextTime = _lastResampleTime + TimeSpan.FromMilliseconds(_targetSamplePeriodMs);
                     }
 
-                    if (produced == 0)
-                    {
-                        // nothing to produce; small delay
-                        await Task.Delay(3, ct).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        // if we produced samples, yield briefly
-                        await Task.Delay(1, ct).ConfigureAwait(false);
-                    }
+                    if (produced == 0) await Task.Delay(1, ct).ConfigureAwait(false);
+                    else await Task.Delay(1, ct).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) { }
@@ -369,21 +297,24 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
             }
         }
 
-        // ------------------- Internal history for interpolation -------------------
-        // We maintain a short history of raw samples (UTC timestamps)
         private readonly System.Collections.Generic.List<RawSample> _history = new();
         private readonly object _historyLock = new();
+
         private void AppendToHistory(System.Collections.Generic.List<RawSample> incoming)
         {
             lock (_historyLock)
             {
-                // Append and keep sorted by time
                 _history.AddRange(incoming);
                 _history.Sort((a, b) => a.TimestampUtc.CompareTo(b.TimestampUtc));
 
-                // Keep only last 3 seconds of history
-                var cutoff = DateTime.UtcNow - TimeSpan.FromSeconds(3);
-                int removeCount = _history.TakeWhile(s => s.TimestampUtc < cutoff).Count();
+                var cutoff = DateTime.UtcNow - TimeSpan.FromSeconds(5); // 5 segundos es suficiente
+
+                int removeCount = 0;
+                if (_history.Count > 0 && _history[0].TimestampUtc < cutoff)
+                {
+                    removeCount = _history.TakeWhile(s => s.TimestampUtc < cutoff).Count();
+                }
+
                 if (removeCount > 0)
                 {
                     _history.RemoveRange(0, removeCount);
@@ -391,17 +322,11 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
             }
         }
 
-        // ------------------- Windowed-Sinc interpolation -------------------
-        // We implement a Lanczos-windowed sinc interpolation that works with irregular
-        // sample times: value(t) = sum_{i in history} sample_i * sinc(2*pi*fc*(t - ti)) * lanczos((t - ti)/a)
-        // where a is the Lanczos parameter (kernel half-width in samples). We limit the
-        // sum to samples within +-kernelHalfWidthSec.
         private double SincInterpolate(DateTime targetUtc)
         {
             var t = targetUtc.ToUniversalTime();
-            double tSec = (t - DateTime.UnixEpoch).TotalSeconds; // seconds since epoch
+            double tSec = (t - DateTime.UnixEpoch).TotalSeconds;
 
-            // local copy of history
             RawSample[] hist;
             lock (_historyLock)
             {
@@ -409,30 +334,24 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
             }
 
             if (hist.Length == 0)
-                return _deviceSignal.Value; // fallback
+                return _deviceSignal.Value;
 
-            // Choose cutoff and lanczos parameter
-            double fc = _sincCutoffHz; // Hz
-            double a = _kernelHalfWidthSec; // seconds
-
-            // Accumulate weighted sum
+            double fc = _sincCutoffHz;
+            double a = _kernelHalfWidthSec;
             double sum = 0.0;
             double wsum = 0.0;
 
-            // Convert each sample timestamp to seconds
+            // Optimizamos búsqueda del rango relevante
             for (int i = 0; i < hist.Length; i++)
             {
                 var si = hist[i];
                 double siSec = (si.TimestampUtc - DateTime.UnixEpoch).TotalSeconds;
-                double dt = tSec - siSec; // seconds
+                double dt = tSec - siSec;
 
-                if (Math.Abs(dt) > a) continue; // outside kernel window
+                if (Math.Abs(dt) > a) continue;
 
-                double x = 2.0 * Math.PI * fc * dt; // radian argument for sinc
-
+                double x = 2.0 * Math.PI * fc * dt;
                 double sinc = SafeSinc(x);
-
-                // Lanczos window: lanczos(u) = sinc(pi * u) / (pi * u) where u = dt / a
                 double u = dt / a;
                 double lanczos = SafeLanczos(u);
 
@@ -441,37 +360,32 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
                 wsum += Math.Abs(w);
             }
 
-            if (wsum <= 1e-12) // no contributing samples -> fallback to nearest
+            if (wsum <= 1e-12)
             {
-                var nearest = hist.OrderBy(h => Math.Abs((h.TimestampUtc - t).TotalMilliseconds)).First();
-                return nearest.Value;
+                // Fallback rápido
+                if (hist.Length > 0) return hist[hist.Length - 1].Value;
+                return _deviceSignal.Value;
             }
 
-            // Normalize
             return sum / wsum;
         }
 
         private static double SafeSinc(double x)
         {
-            // sinc(x) = sin(x)/x; here x is already in radians
             if (Math.Abs(x) < 1e-8) return 1.0;
             return Math.Sin(x) / x;
         }
 
         private static double SafeLanczos(double u)
         {
-            // lanczos kernel parameter a is encoded by caller via windowHalfWidth
-            // lanczos(u) defined for |u| <= 1.0
             if (Math.Abs(u) > 1.0) return 0.0;
             if (Math.Abs(u) < 1e-8) return 1.0;
             double piU = Math.PI * u;
             return Math.Sin(piU) / piU;
         }
 
-        // ------------------- UI timer tick: drain resampled queue and append to ChartValues in batch -------------------
         private void OnUIUpdateTimer(object sender, EventArgs e)
         {
-            // Drain resampled queue into ChartValues in a single lock
             var any = false;
             lock (Sync)
             {
@@ -482,17 +396,17 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
                     _pendingChartUpdate = true;
                 }
 
-                // Keep chart history bounded by TimeWindowMinutes
                 var now = DateTime.Now;
                 var window = TimeSpan.FromMinutes(TimeWindowMinutes);
-                var cutoff = now - window - TimeSpan.FromSeconds(5);
+                var cutoff = now - window - TimeSpan.FromSeconds(2);
+
+                // Limpieza rápida
                 while (ChartValues.Count > 0 && ChartValues[0].DateTime < cutoff)
                     ChartValues.RemoveAt(0);
             }
 
             if (any)
             {
-                // Axis updates throttled similarly to previous behavior
                 var now = DateTime.Now;
                 if (now - _lastChartUpdate > _chartUpdateThreshold)
                 {
@@ -502,12 +416,9 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
                     else
                         System.Windows.Application.Current?.Dispatcher?.BeginInvoke(UpdateAxesThrottled, DispatcherPriority.Background);
                 }
-
-                // Notify UI properties in a coalesced fashion
                 SchedulePropertyNotifications();
             }
 
-            // Stop the UI timer if nothing pending; it will be started again on next UpdateSignal
             lock (_uiUpdateLock)
             {
                 _pendingUIUpdate = false;
@@ -525,20 +436,15 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
             }
         }
 
-        // ------------------- Axis and Y scaling logic (kept similar to previous) -------------------
         private void UpdateAxesThrottled()
         {
             if (!_pendingChartUpdate) return;
-
             lock (Sync)
             {
                 _pendingChartUpdate = false;
                 UpdateXAxisLimits();
-
-                if (IsAutoScale)
-                    UpdateYAxisLimits();
-                else
-                    ApplyYAxisLimits(YMin, YMax);
+                if (IsAutoScale) UpdateYAxisLimits();
+                else ApplyYAxisLimits(YMin, YMax);
             }
         }
 
@@ -548,28 +454,25 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
             {
                 var now = DateTime.Now;
                 var window = TimeSpan.FromMinutes(TimeWindowMinutes);
-                var xAxis = XAxes[0];
-
-                xAxis.MinLimit = (now - window).Ticks;
-                xAxis.MaxLimit = now.Ticks;
+                XAxes[0].MinLimit = (now - window).Ticks;
+                XAxes[0].MaxLimit = now.Ticks;
             }
         }
 
         private void UpdateYAxisLimits()
         {
-            if (ChartValues.Count < 5 || YAxes?.Length == 0)
-                return;
+            if (ChartValues.Count < 5 || YAxes?.Length == 0) return;
 
             var now = DateTime.Now;
             var window = TimeSpan.FromMinutes(TimeWindowMinutes);
             var cutoffTime = now - window;
 
+            // Tomamos una muestra representativa para no recorrer todo
             var visibleValues = ChartValues
                 .Where(p => p.DateTime >= cutoffTime)
-                .Select(p => p.Value)
-                .ToArray();
+                .Select(p => p.Value); // IEnumerable, no array para velocidad
 
-            if (visibleValues.Length == 0) return;
+            if (!visibleValues.Any()) return;
 
             var min = visibleValues.Min();
             var max = visibleValues.Max();
@@ -604,38 +507,24 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
         {
             if (YAxes?.Length > 0)
             {
-                var yAxis = YAxes[0];
-                yAxis.MinLimit = min;
-                yAxis.MaxLimit = max;
+                YAxes[0].MinLimit = min;
+                YAxes[0].MaxLimit = max;
             }
         }
 
-        // ------------------- Cleanup timer -------------------
         private void OnCleanupTimer(object sender, EventArgs e)
         {
             lock (Sync)
             {
                 if (ChartValues.Count == 0) return;
-
                 var now = DateTime.Now;
                 var window = TimeSpan.FromMinutes(TimeWindowMinutes);
                 var cutoffTime = now - window - TimeSpan.FromSeconds(5);
-
-                int removedCount = 0;
                 while (ChartValues.Count > 0 && ChartValues[0].DateTime < cutoffTime)
-                {
                     ChartValues.RemoveAt(0);
-                    removedCount++;
-                }
-
-                if (removedCount > 0)
-                {
-                    Debug.WriteLine($"[{_deviceSignal.Name}] Limpieza: {removedCount} puntos antiguos removidos. Total: {ChartValues.Count}");
-                }
             }
         }
 
-        // ------------------- Helpers and commands (kept mostly the same) -------------------
         [RelayCommand]
         private void ToggleAutoScale()
         {
@@ -652,21 +541,14 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
         [RelayCommand]
         private void ApplyManualScale()
         {
-            if (ManualYMax <= ManualYMin)
-                ManualYMax = ManualYMin + 1.0;
-
-            if (ManualTimeWindow <= 0)
-                ManualTimeWindow = 0.05;
-
+            if (ManualYMax <= ManualYMin) ManualYMax = ManualYMin + 1.0;
+            if (ManualTimeWindow <= 0) ManualTimeWindow = 0.05;
             YMin = ManualYMin;
             YMax = ManualYMax;
             TimeWindowMinutes = ManualTimeWindow;
-
             ApplyYAxisLimits(YMin, YMax);
             UpdateXAxisLimits();
             SchedulePropertyNotifications();
-
-            Debug.WriteLine($"[{_deviceSignal.Name}] Manual scale applied: Y({YMin:F2}-{YMax:F2}), T({TimeWindowMinutes:F2}min)");
         }
 
         [RelayCommand]
@@ -686,11 +568,9 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
         {
             var centerY = (YMax + YMin) / 2;
             var newRange = (YMax - YMin) * 0.7;
-
             ManualYMin = YMin = centerY - newRange / 2;
             ManualYMax = YMax = centerY + newRange / 2;
             ManualTimeWindow = TimeWindowMinutes = Math.Max(TimeWindowMinutes * 0.7, 0.02);
-
             IsAutoScale = false;
             ApplyManualScale();
         }
@@ -700,20 +580,15 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
         {
             var centerY = (YMax + YMin) / 2;
             var newRange = (YMax - YMin) * 1.4;
-
             ManualYMin = YMin = centerY - newRange / 2;
             ManualYMax = YMax = centerY + newRange / 2;
             ManualTimeWindow = TimeWindowMinutes = Math.Min(TimeWindowMinutes * 1.4, 10);
-
             IsAutoScale = false;
             ApplyManualScale();
         }
 
         [RelayCommand]
-        private void ToggleScaleControls()
-        {
-            ShowScaleControls = !ShowScaleControls;
-        }
+        private void ToggleScaleControls() => ShowScaleControls = !ShowScaleControls;
 
         [RelayCommand]
         private void ManualRefreshChart()
@@ -723,45 +598,15 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
             OnPropertyChanged(nameof(ChartSeries));
             OnPropertyChanged(nameof(XAxes));
             OnPropertyChanged(nameof(YAxes));
-            Debug.WriteLine($"[{_deviceSignal.Name}] Manual refresh completed");
         }
 
-        public void DebugChart()
-        {
-            Debug.WriteLine($"=== CHART DEBUG [{_deviceSignal.Name}] ===");
-            Debug.WriteLine($"Raw received: {_totalRawReceived}, Resampled produced: {_totalResampledProduced}");
-            Debug.WriteLine($"ChartValues Count: {ChartValues.Count}");
-            Debug.WriteLine($"AutoScale: {IsAutoScale}");
-            Debug.WriteLine($"Y Limits: {YMin:F2} - {YMax:F2}");
-            Debug.WriteLine($"Time Window: {TimeWindowMinutes:F2} min");
-            Debug.WriteLine($"Pending Updates: Chart={_pendingChartUpdate}, UI={_pendingUIUpdate}");
-
-            if (ChartValues.Any())
-            {
-                var first = ChartValues.First();
-                var last = ChartValues.Last();
-                Debug.WriteLine($"Data Range: {first.DateTime:HH:mm:ss.fff} ({first.Value:F3}) to {last.DateTime:HH:mm:ss.fff} ({last.Value:F3})");
-            }
-        }
-
-        // ------------------- Dispose / cleanup -------------------
         public void Dispose()
         {
-            try
-            {
-                _dspCts.Cancel();
-                _dspTask?.Wait(500);
-            }
-            catch { }
-
-            _uiUpdateTimer.Tick -= OnUIUpdateTimer;
-            _uiUpdateTimer.Stop();
-
-            _cleanupTimer.Tick -= OnCleanupTimer;
-            _cleanupTimer.Stop();
+            try { _dspCts.Cancel(); _dspTask?.Wait(500); } catch { }
+            _uiUpdateTimer.Tick -= OnUIUpdateTimer; _uiUpdateTimer.Stop();
+            _cleanupTimer.Tick -= OnCleanupTimer; _cleanupTimer.Stop();
         }
 
-        // ------------------- Internal raw sample struct -------------------
         private struct RawSample
         {
             public DateTime TimestampUtc;
