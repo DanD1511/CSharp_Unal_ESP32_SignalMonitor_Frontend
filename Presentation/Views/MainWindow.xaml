@@ -5,7 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="clr-namespace:CSharp_WPF_Websockets.Presentation.Views"
         mc:Ignorable="d"
-        Title="ESP32 Signal Monitor" Height="900" Width="1600"
+        Icon="/Resources/Assets/logo.png"
+        Title="WS SCope" Height="900" Width="1600"
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
         Background="Transparent"
@@ -13,34 +14,24 @@
         UseLayoutRounding="True">
 
     <Window.Resources>
-        <!-- PALETA DE COLORES (LIGHT THEME PRO) -->
         <SolidColorBrush x:Key="BgDeep" Color="#FFF5F7FA"/>
-        <!-- Fondo Gris Muy Claro -->
         <SolidColorBrush x:Key="BgCard" Color="#FFFFFFFF"/>
-        <!-- Tarjeta Blanca Pura -->
         <SolidColorBrush x:Key="BgHover" Color="#FFF0F2F5"/>
 
         <SolidColorBrush x:Key="AccentColor" Color="#FF0984E3"/>
-        <!-- Azul Profesional -->
         <SolidColorBrush x:Key="AccentLight" Color="#EBF5FB"/>
-        <!-- Azul Muy Claro (Fondo selección) -->
         <SolidColorBrush x:Key="ErrorColor" Color="#D63031"/>
         <SolidColorBrush x:Key="SuccessColor" Color="#00B894"/>
 
         <SolidColorBrush x:Key="BorderColor" Color="#E2E8F0"/>
 
         <SolidColorBrush x:Key="TextPrimary" Color="#FF2D3436"/>
-        <!-- Gris Casi Negro -->
         <SolidColorBrush x:Key="TextSecondary" Color="#FF636E72"/>
-        <!-- Gris Medio -->
         <SolidColorBrush x:Key="TextMuted" Color="#FFB2BEC3"/>
-        <!-- Gris Claro -->
 
-        <!-- SOMBRAS (ELEVATION) -->
         <DropShadowEffect x:Key="CardShadow" BlurRadius="10" ShadowDepth="2" Direction="270" Color="#DCE1E6" Opacity="0.5"/>
         <DropShadowEffect x:Key="HeaderShadow" BlurRadius="5" ShadowDepth="1" Direction="270" Color="#DCE1E6" Opacity="0.3"/>
 
-        <!-- ESTILO SCROLLBAR (Minimalista Gris) -->
         <Style TargetType="{x:Type ScrollBar}">
             <Setter Property="Stylus.IsPressAndHoldEnabled" Value="false"/>
             <Setter Property="Stylus.IsFlicksEnabled" Value="false"/>
@@ -62,7 +53,6 @@
                                                             <ControlTemplate.Triggers>
                                                                 <Trigger Property="IsMouseOver" Value="True">
                                                                     <Setter Property="Background" Value="#A0AEC0"/>
-                                                                    <!-- Más oscuro al hover -->
                                                                 </Trigger>
                                                             </ControlTemplate.Triggers>
                                                         </ControlTemplate>
@@ -79,7 +69,6 @@
             </Setter>
         </Style>
 
-        <!-- BOTÓN DE LAYOUT (ICONOS MATRIZ) -->
         <Style x:Key="LayoutButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -103,14 +92,12 @@
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="bdr" Property="Background" Value="#CBD5E0"/>
                             </Trigger>
-                            <!-- Estado activo simulado (puedes bindearlo si quieres) -->
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <!-- ESTILO PATH ICON (LAYOUTS) -->
         <Style x:Key="IconPath" TargetType="Path">
             <Setter Property="Fill" Value="{StaticResource TextSecondary}"/>
             <Setter Property="Stretch" Value="Uniform"/>
@@ -123,7 +110,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- BOTÓN PRINCIPAL (CONNECT/ETC) -->
         <Style x:Key="PrimaryButton" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource AccentColor}"/>
             <Setter Property="Foreground" Value="White"/>
@@ -141,7 +127,6 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="brd" Property="Background" Value="#FF0A75C9"/>
-                                <!-- Azul un poco más oscuro -->
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="brd" Property="RenderTransform">
@@ -218,6 +203,10 @@
     </Window.Resources>
 
     <Grid Background="{StaticResource BgDeep}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="33*"/>
+            <ColumnDefinition Width="767*"/>
+        </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <!-- Header -->
@@ -228,7 +217,7 @@
         </Grid.RowDefinitions>
 
         <!-- 1. HEADER BAR -->
-        <Border Grid.Row="0" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1" Padding="20,15" Effect="{StaticResource HeaderShadow}">
+        <Border Grid.Row="0" Background="{StaticResource BgCard}" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1" Padding="20,15" Effect="{StaticResource HeaderShadow}" Grid.ColumnSpan="2">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -242,8 +231,8 @@
                 <!-- LOGO & TITULO -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Border Background="{StaticResource AccentColor}" CornerRadius="4" Width="8" Height="24" Margin="0,0,12,0"/>
-                    <TextBlock Text="Signal" FontWeight="Bold" FontSize="22" Foreground="{StaticResource TextPrimary}"/>
-                    <TextBlock Text="Monitor" FontWeight="Regular" FontSize="22" Foreground="{StaticResource TextSecondary}" Margin="6,0,0,0"/>
+                    <TextBlock Text="WS" FontWeight="Bold" FontSize="22" Foreground="{StaticResource TextPrimary}"/>
+                    <TextBlock Text="Scope" FontWeight="Regular" FontSize="22" Foreground="{StaticResource TextSecondary}" Margin="6,0,0,0"/>
                 </StackPanel>
 
                 <!-- CONTROLES -->
@@ -298,7 +287,7 @@
         </Border>
 
         <!-- 2. CONTENT AREA -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" Grid.ColumnSpan="2">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="15">
                 <ItemsControl ItemsSource="{Binding SignalCards}">
 
@@ -373,7 +362,7 @@
         </Grid>
 
         <!-- 3. STATUS BAR -->
-        <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,0" Padding="20,0">
+        <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,0" Padding="20,0" Grid.ColumnSpan="2">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
