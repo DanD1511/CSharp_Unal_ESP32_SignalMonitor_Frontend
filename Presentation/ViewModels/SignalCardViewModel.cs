@@ -21,7 +21,6 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
 {
     public partial class SignalCardViewModel : ObservableObject, IDisposable
     {
-        // ---------- Original properties & fields ----------
         private DeviceSignal _deviceSignal;
 
         private readonly DispatcherTimer _uiUpdateTimer;
@@ -31,8 +30,7 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
         private readonly object _uiUpdateLock = new object();
 
         private DateTime _lastChartUpdate = DateTime.MinValue;
-        // Refrescamos ejes más rápido para señales rápidas
-        private readonly TimeSpan _chartUpdateThreshold = TimeSpan.FromMilliseconds(30);
+        private readonly TimeSpan _chartUpdateThreshold = TimeSpan.FromMilliseconds(60);
 
         public ObservableCollection<ISeries> ChartSeries { get; } = new();
         public ObservableCollection<DateTimePoint> ChartValues { get; } = new();
@@ -54,15 +52,11 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
 
         public object Sync { get; } = new object();
 
-        // ---------- DSP pipeline fields ----------
         private readonly ConcurrentQueue<RawSample> _rawQueue = new();
         private readonly ConcurrentQueue<DateTimePoint> _resampledQueue = new();
         private readonly CancellationTokenSource _dspCts = new();
         private Task _dspTask;
 
-        // --- CORRECCIÓN CRÍTICA PARA 100Hz ---
-        // Necesitamos al menos 2.5x la frecuencia máxima. 
-        // 100Hz * 5 = 500Hz nos dará una señal muy fiel.
         private readonly double _targetSampleRate = 500.0;
 
         private readonly double _targetSamplePeriodMs;
@@ -80,11 +74,9 @@ namespace CSharp_WPF_Websockets.Presentation.ViewModels
 
             _targetSamplePeriodMs = 1000.0 / _targetSampleRate;
 
-            // Nyquist en 250Hz. Esto permite pasar señales de 100Hz sin atenuación.
             _sincCutoffHz = 0.5 * _targetSampleRate;
 
-            // Ajustamos la ventana del kernel para ser más rápida (menos latencia)
-            _kernelHalfWidthSec = 0.02; // 20ms de ventana
+            _kernelHalfWidthSec = 0.02;
             _kernelHalfWidthSamplesApprox = (int)Math.Ceiling(_kernelHalfWidthSec * 1000.0 / 1.0);
 
             _uiUpdateTimer = new DispatcherTimer(DispatcherPriority.Background)

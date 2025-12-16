@@ -242,7 +242,7 @@
                 <!-- LOGO & TITULO -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Border Background="{StaticResource AccentColor}" CornerRadius="4" Width="8" Height="24" Margin="0,0,12,0"/>
-                    <TextBlock Text="ESP32" FontWeight="Bold" FontSize="22" Foreground="{StaticResource TextPrimary}"/>
+                    <TextBlock Text="Signal" FontWeight="Bold" FontSize="22" Foreground="{StaticResource TextPrimary}"/>
                     <TextBlock Text="Monitor" FontWeight="Regular" FontSize="22" Foreground="{StaticResource TextSecondary}" Margin="6,0,0,0"/>
                 </StackPanel>
 
@@ -273,10 +273,10 @@
 
                     <!-- CONEXIÓN -->
                     <TextBlock Text="IP Address" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}" FontSize="12" FontWeight="SemiBold" Margin="0,0,8,0"/>
-                    <TextBox Text="{Binding DeviceIpAddress, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Width="140" Margin="0,0,20,0"/>
+                    <TextBox Background="{StaticResource BgHover}" Text="{Binding DeviceIpAddress, UpdateSourceTrigger=PropertyChanged, FallbackValue=localhost}" Style="{StaticResource ModernTextBox}" Width="140" Margin="0,0,20,0"/>
 
                     <TextBlock Text="Port" VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}" FontSize="12" FontWeight="SemiBold" Margin="0,0,8,0"/>
-                    <TextBox Text="{Binding DevicePort, UpdateSourceTrigger=PropertyChanged, FallbackValue=8080}" Style="{StaticResource ModernTextBox}" Width="70" Margin="0,0,25,0"/>
+                    <TextBox Background="{StaticResource BgHover}" Text="{Binding DevicePort, UpdateSourceTrigger=PropertyChanged, FallbackValue=8080}" Style="{StaticResource ModernTextBox}" Width="70" Margin="0,0,25,0"/>
 
                     <Button Command="{Binding ConnectCommand}" Style="{StaticResource PrimaryButton}" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
@@ -286,11 +286,11 @@
                     </Button>
 
                     <Button Command="{Binding DisconnectCommand}" Style="{StaticResource GhostButton}" Margin="0,0,10,0" Foreground="{StaticResource ErrorColor}" BorderBrush="#FFEBEE">
-                        <TextBlock Text="Stop" FontWeight="SemiBold"/>
+                        <TextBlock Text="Stop" Foreground="Black" FontWeight="SemiBold"/>
                     </Button>
 
                     <Button Command="{Binding RefreshCommand}" Style="{StaticResource GhostButton}" Width="45" Padding="0" ToolTip="Reset Charts">
-                        <TextBlock Text="↻" FontSize="18" FontWeight="Bold" Margin="0,-2,0,0"/>
+                        <TextBlock Text="↻" Foreground="Black" FontSize="18" FontWeight="Bold" Margin="0,-2,0,0"/>
                     </Button>
 
                 </StackPanel>
@@ -340,7 +340,7 @@
                                             <ToggleButton.Template>
                                                 <ControlTemplate TargetType="ToggleButton">
                                                     <Border x:Name="tb" Background="Transparent" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="4" Padding="8,4">
-                                                        <TextBlock x:Name="txt" Text="Select" FontSize="11" Foreground="{StaticResource TextSecondary}"/>
+                                                        <TextBlock Width="auto" x:Name="txt" Text="Select" FontSize="11" Foreground="{StaticResource TextSecondary}"/>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsChecked" Value="True">
@@ -382,15 +382,16 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse Width="8" Height="8" Fill="{Binding ConnectionStatusColor}" Margin="0,0,10,0"/>
-                    <TextBlock Text="{Binding ConnectionStatus}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+                    <Ellipse Width="8" Height="8" Fill="{Binding ConnectionStatusColor, FallbackValue=green}" Margin="0,0,10,0"/>
+                    <TextBlock Text="{Binding ConnectionStatus, FallbackValue=Conected}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <Border Background="{StaticResource BgHover}" CornerRadius="4" Padding="8,2" Margin="0,0,15,0">
                         <TextBlock Text="Render: 60 FPS" Foreground="{StaticResource TextSecondary}" FontSize="11" FontWeight="Bold"/>
                     </Border>
-                    <TextBlock Text="{Binding LastUpdate, StringFormat='{}Updated: {0:HH:mm:ss}'}" Foreground="{StaticResource TextMuted}" FontSize="12"/>
+                    <TextBlock Text="{Binding LastUpdate, StringFormat='{}Updated: {0:HH:mm:ss},', FallbackValue=9999999}" Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,0,15,0"/>
+                    <TextBlock Text="Developed by Danilo Da Cunha" Foreground="{StaticResource TextMuted}"/>
                 </StackPanel>
             </Grid>
         </Border>

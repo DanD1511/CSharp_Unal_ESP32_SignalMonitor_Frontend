@@ -168,28 +168,22 @@
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <ToggleButton Style="{StaticResource AutoToggle}" 
-                              Content="AUTO" 
+                              Content="AUTO" Foreground="Black"
                               IsChecked="{Binding IsAutoScale}" 
                               Command="{Binding ToggleAutoScaleCommand}"
                               ToolTip="Auto Scale Y-Axis"/>
 
                 <Button Style="{StaticResource ToolButton}" Command="{Binding ZoomInCommand}" ToolTip="Zoom In (+)">
-                    <TextBlock Text="+" FontWeight="Bold" Margin="0,-2,0,0"/>
+                    <TextBlock Foreground="Black" Text="+" FontWeight="Bold" Margin="0,-2,0,0"/>
                 </Button>
 
                 <Button Style="{StaticResource ToolButton}" Command="{Binding ZoomOutCommand}" ToolTip="Zoom Out (-)">
-                    <TextBlock Text="-" FontWeight="Bold" Margin="0,-2,0,0"/>
-                </Button>
-
-                <Rectangle Width="1" Fill="{StaticResource BorderColor}" Margin="4,3"/>
-
-                <Button Style="{StaticResource ToolButton}" Command="{Binding ToggleScaleControlsCommand}" ToolTip="Settings">
-                    <TextBlock Text="⚙" FontSize="14"/>
+                    <TextBlock Foreground="Black" Text="-" FontWeight="Bold" Margin="0,-2,0,0"/>
                 </Button>
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="2" Background="#f3f5f9" Margin="5,0,5,5">
+        <Grid Grid.Row="2" Background="#000000" Margin="5,0,5,5">
             <lvc:CartesianChart x:Name="SignalChart"
                                 Series="{Binding ChartSeries, UpdateSourceTrigger=PropertyChanged}"
                                 XAxes="{Binding XAxes, UpdateSourceTrigger=PropertyChanged}"
@@ -199,7 +193,7 @@
                                 TooltipPosition="Hidden"/>
         </Grid>
 
-        <Border Grid.Row="3" MinHeight="100"
+        <Border Grid.Row="3" MinHeight="50"
                 Background="#FAFAFA" 
                 BorderBrush="{StaticResource BorderColor}" 
                 BorderThickness="0,1,0,0" 
@@ -207,9 +201,8 @@
                 Visibility="Visible">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="auto"/>
-                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0">
@@ -225,18 +218,17 @@
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0" Text="Min:" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="0,0,5,0"/>
-                    <TextBox Grid.Column="1" Text="{Binding ManualYMin}" Style="{StaticResource TinyInput}"/>
+                    <TextBox Background="#f0f0f0" Grid.Column="1" Text="{Binding ManualYMin}" Style="{StaticResource TinyInput}"/>
 
                     <TextBlock Grid.Column="3" Text="Max:" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="0,0,5,0"/>
-                    <TextBox Grid.Column="4" Text="{Binding ManualYMax}" Style="{StaticResource TinyInput}"/>
+                    <TextBox Background="#f0f0f0" Grid.Column="4" Text="{Binding ManualYMax}" Style="{StaticResource TinyInput}"/>
 
                     <TextBlock Grid.Column="6" Text="Min (T):" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="0,0,5,0"/>
-                    <TextBox Grid.Column="7" Text="{Binding ManualTimeWindow}" Style="{StaticResource TinyInput}"/>
+                    <TextBox Background="#f0f0f0" Grid.Column="7" Text="{Binding ManualTimeWindow}" Style="{StaticResource TinyInput}"/>
                 </Grid>
 
-                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="Reset Default" Command="{Binding ResetScaleCommand}" Style="{StaticResource ToolButton}" Width="Auto" Padding="8,0" Margin="0,0,8,0"/>
-                    <Button Content="Apply" Command="{Binding ApplyManualScaleCommand}" Style="{StaticResource ToolButton}" Width="Auto" Padding="12,0" Background="{StaticResource AccentColor}" Foreground="White" BorderThickness="0"/>
+                <StackPanel Margin="10" Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Apply" Command="{Binding ApplyManualScaleCommand}" Style="{StaticResource ToolButton}" Width="100" Padding="20" Background="{StaticResource AccentColor}" Foreground="White" BorderThickness="0"/>
                 </StackPanel>
             </Grid>
         </Border>
